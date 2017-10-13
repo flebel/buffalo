@@ -3,6 +3,7 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -64,6 +65,14 @@ var newCmd = &cobra.Command{
 		err = genNewFiles()
 		if err != nil {
 			return err
+		}
+
+		// Postprocess to remove the template in render.go and to generate the index.html
+		if app.WithReact {
+			err = postProcessReact()
+			if err != nil {
+				return err
+			}
 		}
 
 		fmt.Printf("Congratulations! Your application, %s, has been successfully built!\n\n", app.Name)
@@ -154,6 +163,7 @@ func genNewFiles() error {
 		"modelsPath":  packagePath + "/models",
 		"withPop":     !app.SkipPop,
 		"withDep":     app.WithDep,
+		"withReact":   app.WithReact,
 		"withWebpack": !app.SkipWebpack && !app.API,
 		"skipYarn":    app.SkipYarn,
 		"withYarn":    !app.SkipYarn,
@@ -172,6 +182,55 @@ func genNewFiles() error {
 	return g.Run(app.RootPath, data)
 }
 
+// React postprocess to adapt its app template
+func postProcessReact() error {
+	changes := map[string]string{
+		"application.html": "",
+		"/templates":       "/public",
+	}
+	// Modify render.go to not use html template
+	// and serve index.html from public
+	err := modifyAppFile("actions/render.go", changes)
+	if err != nil {
+		return err
+	}
+
+	changes = map[string]string{
+		"Welcome to Buffalo!": `<div id=\"root\"></div>`,
+	}
+	// Modify home_test.go to test index.html body
+	err = modifyAppFile("actions/home_test.go", changes)
+	if err != nil {
+		return err
+	}
+
+	// Remove application.html from templates
+	err = os.Remove(filepath.Join(app.RootPath, "templates", "application.html"))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Modify the file content with regular expressions
+func modifyAppFile(path string, changes map[string]string) error {
+	rf := filepath.Join(app.RootPath, path)
+	file, err := ioutil.ReadFile(rf)
+	if err != nil {
+		return err
+	}
+	for src, target := range changes {
+		re := regexp.MustCompile(src)
+		file = []byte(re.ReplaceAllString(string(file), target))
+	}
+	err = ioutil.WriteFile(rf, file, 644)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func init() {
 	pwd, _ := os.Getwd()
 
@@ -185,6 +244,7 @@ func init() {
 	newCmd.Flags().BoolVarP(&app.Verbose, "verbose", "v", false, "verbosely print out the go get commands")
 	newCmd.Flags().BoolVar(&app.SkipPop, "skip-pop", false, "skips adding pop/soda to your app")
 	newCmd.Flags().BoolVar(&app.WithDep, "with-dep", false, "adds github.com/golang/dep to your app")
+	newCmd.Flags().BoolVar(&app.WithReact, "with-react", false, "adds React to your app")
 	newCmd.Flags().BoolVar(&app.SkipWebpack, "skip-webpack", false, "skips adding Webpack to your app")
 	newCmd.Flags().BoolVar(&app.SkipYarn, "skip-yarn", false, "skip to use npm as the asset package manager")
 	newCmd.Flags().StringVar(&app.DBType, "db-type", "postgres", "specify the type of database you want to use [postgres, mysql, sqlite3]")

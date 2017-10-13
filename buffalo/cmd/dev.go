@@ -50,6 +50,8 @@ This behavior can be changed in your .buffalo.dev.yml file.`,
 
 		wg, ctx := errgroup.WithContext(ctx)
 
+		os.Setenv("NODE_ENV", "development")
+
 		wg.Go(func() error {
 			return startDevServer(ctx)
 		})

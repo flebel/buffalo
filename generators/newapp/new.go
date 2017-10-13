@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/gobuffalo/buffalo/generators"
+	"github.com/gobuffalo/buffalo/generators/assets/react"
 	"github.com/gobuffalo/buffalo/generators/assets/standard"
 	"github.com/gobuffalo/buffalo/generators/assets/webpack"
 	"github.com/gobuffalo/buffalo/generators/docker"
@@ -22,6 +23,7 @@ type App struct {
 	Force       bool
 	Verbose     bool
 	SkipPop     bool
+	WithReact   bool
 	SkipWebpack bool
 	SkipYarn    bool
 	DBType      string
@@ -74,6 +76,12 @@ func (a *App) Generator(data makr.Data) (*makr.Generator, error) {
 			wg, err := standard.New(data)
 			if err != nil {
 				return g, errors.WithStack(err)
+			}
+			g.Add(wg)
+		} else if a.WithReact {
+			wg, err := react.New(data)
+			if err != nil {
+				return g, err
 			}
 			g.Add(wg)
 		} else {
